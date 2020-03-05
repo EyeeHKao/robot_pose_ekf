@@ -66,7 +66,7 @@ public:
   /// destructor
   virtual ~OdomEstimation();
 
-  /** update the extended Kalman filter
+  /** update the extended Kalman filter：通过tf将当前滤波器时刻（当前时刻各传感器数据时间戳最小的时刻）的传感器绝对测量对齐（时间同步），并依次更新
    * \param odom_active specifies if the odometry sensor is active or not
    * \param imu_active specifies if the imu sensor is active or not
    * \param gps_active specifies if the gps sensor is active or not
@@ -168,10 +168,10 @@ private:
   double diagnostics_odom_rot_rel_, diagnostics_imu_rot_rel_;
 
   // tf transformer
-  tf::Transformer transformer_;
+  tf::Transformer transformer_;	///保存了历史一段时间各坐标系的tf变换关系，维护tf tree(ros中),便于查询任意时刻两坐标系的关系
 
-  std::string output_frame_;
-  std::string base_footprint_frame_;
+  std::string output_frame_;	///滤波器估计结果所命名的坐标系
+  std::string base_footprint_frame_;	///起始时机器中心的坐标系（固定参考坐标系或世界坐标系，odom0）
 
 }; // class
 
