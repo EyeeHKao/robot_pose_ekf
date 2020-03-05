@@ -70,8 +70,8 @@ namespace estimation
       gps_callback_counter_(0),
       ekf_sent_counter_(0)
   {
-    ros::NodeHandle nh_private("~");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh_private("~");	///私有节点用于发布融合后的位姿，提供估计器节点的系统状态
+    ros::NodeHandle nh;		///此节点用于订阅各个传感器的消息
 
     // paramters
     nh_private.param("output_frame", output_frame_, std::string("odom_combined"));
@@ -84,7 +84,7 @@ namespace estimation
     nh_private.param("debug",   debug_, false);
     nh_private.param("self_diagnose",  self_diagnose_, false);
     double freq;
-    nh_private.param("freq", freq, 30.0);
+    nh_private.param("freq", freq, 30.0);	///滤波器更新频率
 
     tf_prefix_ = tf::getPrefixParam(nh_private);
     output_frame_ = tf::resolve(tf_prefix_, output_frame_);
@@ -97,10 +97,10 @@ namespace estimation
     // so that user-defined tf frames are respected
     my_filter_.setOutputFrame(output_frame_);
     my_filter_.setBaseFootprintFrame(base_footprint_frame_);
+//启动滤波器循环更新事件
+    timer_ = nh_private.createTimer(ros::Duration(1.0/max(freq,1.0)), &OdomEstimationNode::spin, this);	
 
-    timer_ = nh_private.createTimer(ros::Duration(1.0/max(freq,1.0)), &OdomEstimationNode::spin, this);
-
-    // advertise our estimation
+    // advertise our estimation：向master注册发布话题用于发布估计的位姿
     pose_pub_ = nh_private.advertise<geometry_msgs::PoseWithCovarianceStamped>("odom_combined", 10);
 
     // initialize
@@ -134,9 +134,9 @@ namespace estimation
     else ROS_DEBUG("GPS sensor will NOT be used");
 
 
-    // publish state service
+    // publish state service：向master注册服务话题，提供状态获取服务
     state_srv_ = nh_private.advertiseService("get_status", &OdomEstimationNode::getStatus, this);
-
+//调试模式下，准备用于保存传感器数据的文件流
     if (debug_){
       // open files for debugging
       odom_file_.open("/tmp/odom_file.txt");
@@ -148,8 +148,6 @@ namespace estimation
   
     }
   };
-
-
 
 
   // destructor
@@ -186,7 +184,7 @@ namespace estimation
     for (unsigned int i=0; i<6; i++)
       for (unsigned int j=0; j<6; j++)
         odom_covariance_(i+1, j+1) = odom->pose.covariance[6*i+j];
-
+//odom_meas为里程计绝对位姿：即base_footprint_frame_到wheelodom的位姿（可以理解wheelodom为里程计起始时刻的坐标系odom0）
     my_filter_.addMeasurement(StampedTransform(odom_meas_.inverse(), odom_stamp_, base_footprint_frame_, "wheelodom"), odom_covariance_);
     
     // activate odom
@@ -227,12 +225,12 @@ namespace estimation
     imu_stamp_ = imu->header.stamp;
     tf::Quaternion orientation;
     quaternionMsgToTF(imu->orientation, orientation);
-    imu_meas_ = tf::Transform(orientation, tf::Vector3(0,0,0));
+    imu_meas_ = tf::Transform(orientation, tf::Vector3(0,0,0));///imu到imu0坐标系的位姿
     for (unsigned int i=0; i<3; i++)
       for (unsigned int j=0; j<3; j++)
         imu_covariance_(i+1, j+1) = imu->orientation_covariance[3*i+j];
 
-    // Transforms imu data to base_footprint frame
+    // Transforms imu data to base_footprint frame:
     if (!robot_state_.waitForTransform(base_footprint_frame_, imu->header.frame_id, imu_stamp_, ros::Duration(0.5))){
       // warn when imu was already activated, not when imu is not active yet
       if (imu_active_)
@@ -243,9 +241,9 @@ namespace estimation
         ROS_DEBUG("Could not transform imu message from %s to %s. Imu will not be activated yet.", imu->header.frame_id.c_str(), base_footprint_frame_.c_str());
       return;
     }
-    StampedTransform base_imu_offset;
+    StampedTransform base_imu_offset;///查询当前从imu坐标系到base_footprint坐标系下位姿变换，这是个固定值，外参
     robot_state_.lookupTransform(base_footprint_frame_, imu->header.frame_id, imu_stamp_, base_imu_offset);
-    imu_meas_ = imu_meas_ * base_imu_offset;
+    imu_meas_ = imu_meas_ * base_imu_offset;///此时imu坐标系到imu0坐标系的位姿，即imu计算的绝对位姿
 
     imu_time_  = Time::now();
 
@@ -257,7 +255,7 @@ namespace estimation
       measNoiseImu_Cov(3,3) = pow(0.00017,2);  // = 0.01 degrees / sec
       imu_covariance_ = measNoiseImu_Cov;
     }
-
+	//这里说明，imu_meas_是从base_footprint_frame_到imu
     my_filter_.addMeasurement(StampedTransform(imu_meas_.inverse(), imu_stamp_, base_footprint_frame_, "imu"), imu_covariance_);
     
     // activate imu
@@ -301,6 +299,7 @@ namespace estimation
     for (unsigned int i=0; i<6; i++)
       for (unsigned int j=0; j<6; j++)
         vo_covariance_(i+1, j+1) = vo->pose.covariance[6*i+j];
+	  //vo_meas是？
     my_filter_.addMeasurement(StampedTransform(vo_meas_.inverse(), vo_stamp_, base_footprint_frame_, "vo"), vo_covariance_);
     
     // activate vo
@@ -431,7 +430,7 @@ namespace estimation
           
           // output most recent estimate and relative covariance
           my_filter_.getEstimate(output_);
-          pose_pub_.publish(output_);
+          pose_pub_.publish(output_);//output_是滤波器估计值，
           ekf_sent_counter_++;
           
           // broadcast most recent estimate to TransformArray
