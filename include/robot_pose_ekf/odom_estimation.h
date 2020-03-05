@@ -170,8 +170,8 @@ private:
   // tf transformer
   tf::Transformer transformer_;	///保存了历史一段时间各坐标系的tf变换关系，维护tf tree(ros中),便于查询任意时刻两坐标系的关系
 
-  std::string output_frame_;	///滤波器估计结果所命名的坐标系
-  std::string base_footprint_frame_;	///起始时机器中心的坐标系（固定参考坐标系或世界坐标系，odom0）
+  std::string output_frame_;	///世界坐标系或固定坐标系，一般为系统起始点的机器人坐标系
+  std::string base_footprint_frame_;	///机器中心在地面投影点的坐标系（注意是随机器人一起运动的）
 
 }; // class
 
