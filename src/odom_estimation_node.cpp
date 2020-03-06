@@ -180,11 +180,12 @@ namespace estimation
     odom_time_  = Time::now();
     Quaternion q;
     tf::quaternionMsgToTF(odom->pose.pose.orientation, q);
+	  //此时odom_meas_为里程计的测得的绝对位姿（有漂移），即base_footprint_frame 到wheelodom_frame（是固定坐标系，但是会随时间漂移）的位姿
     odom_meas_  = Transform(q, Vector3(odom->pose.pose.position.x, odom->pose.pose.position.y, 0));
     for (unsigned int i=0; i<6; i++)
       for (unsigned int j=0; j<6; j++)
         odom_covariance_(i+1, j+1) = odom->pose.covariance[6*i+j];
-//odom_meas为里程计绝对位姿：即base_footprint_frame_到wheelodom的位姿（可以理解wheelodom为里程计起始时刻的坐标系odom0）
+//odom_meas为里程计绝对位姿：即base_footprint_frame_到wheelodom的位姿（可以理解wheelodom为里程计起始时刻的固定坐标系，但是会随着时间漂移）
     my_filter_.addMeasurement(StampedTransform(odom_meas_.inverse(), odom_stamp_, base_footprint_frame_, "wheelodom"), odom_covariance_);
     
     // activate odom
@@ -225,7 +226,7 @@ namespace estimation
     imu_stamp_ = imu->header.stamp;
     tf::Quaternion orientation;
     quaternionMsgToTF(imu->orientation, orientation);
-    imu_meas_ = tf::Transform(orientation, tf::Vector3(0,0,0));///imu到imu0坐标系的位姿
+    imu_meas_ = tf::Transform(orientation, tf::Vector3(0,0,0));///imu积分算得的绝对位姿（会漂移），imu_meas为当前imu传感器固连坐标系（不会漂移的）到"imu"（要和imu传感器固连的坐标系imu->header.frame_id区分开，"imu"是imu数据起始时刻的固定坐标系，但是会随时间漂移）的坐标变换
     for (unsigned int i=0; i<3; i++)
       for (unsigned int j=0; j<3; j++)
         imu_covariance_(i+1, j+1) = imu->orientation_covariance[3*i+j];
@@ -241,9 +242,9 @@ namespace estimation
         ROS_DEBUG("Could not transform imu message from %s to %s. Imu will not be activated yet.", imu->header.frame_id.c_str(), base_footprint_frame_.c_str());
       return;
     }
-    StampedTransform base_imu_offset;///查询当前从imu坐标系到base_footprint坐标系下位姿变换，这是个固定值，外参
-    robot_state_.lookupTransform(base_footprint_frame_, imu->header.frame_id, imu_stamp_, base_imu_offset);
-    imu_meas_ = imu_meas_ * base_imu_offset;///此时imu坐标系到imu0坐标系的位姿，即imu计算的绝对位姿
+    StampedTransform base_imu_offset;///查询当前从mu->header.frame_id坐标系到base_footprint坐标系下位姿变换，这是个固定值，外参
+    robot_state_.lookupTransform(base_footprint_frame_, imu->header.frame_id, imu_stamp_, base_imu_offset);///这个是imu->header.frame_id frame 到base_footprint_frame_的位姿变换，固定的外参
+    imu_meas_ = imu_meas_ * base_imu_offset;///这里的计算应该有问题
 
     imu_time_  = Time::now();
 
@@ -255,7 +256,7 @@ namespace estimation
       measNoiseImu_Cov(3,3) = pow(0.00017,2);  // = 0.01 degrees / sec
       imu_covariance_ = measNoiseImu_Cov;
     }
-	//这里说明，imu_meas_是从base_footprint_frame_到imu
+	//这里说明，imu_meas_是从base_footprint_frame_到"imu"系（会随时间漂移）
     my_filter_.addMeasurement(StampedTransform(imu_meas_.inverse(), imu_stamp_, base_footprint_frame_, "imu"), imu_covariance_);
     
     // activate imu
@@ -299,7 +300,7 @@ namespace estimation
     for (unsigned int i=0; i<6; i++)
       for (unsigned int j=0; j<6; j++)
         vo_covariance_(i+1, j+1) = vo->pose.covariance[6*i+j];
-	  //vo_meas是？
+	  //同样，vo_meas_也会随时间漂移，表示从base_footprint_frame到"vo"frame（vo起始时的固定坐标，会随时间漂移）坐标
     my_filter_.addMeasurement(StampedTransform(vo_meas_.inverse(), vo_stamp_, base_footprint_frame_, "vo"), vo_covariance_);
     
     // activate vo
