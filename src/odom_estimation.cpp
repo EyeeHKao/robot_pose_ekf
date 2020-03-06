@@ -210,7 +210,7 @@ namespace estimation
 	diagnostics_odom_rot_rel_ = odom_rel(6);
       }
       else{
-	odom_initialized_ = true;
+	odom_initialized_ = true;///这个变量主要是用来检测一段时间里没有了数据，那么相应sensor就不激活，那么等到再次激活的时候，必然要重新从这个时间时间点开始累积位姿
 	diagnostics_odom_rot_rel_ = 0;
       }
       odom_meas_old_ = odom_meas_;
