@@ -192,9 +192,10 @@ namespace estimation
         return false;
       }
 	    //lookupTransform("target_frame", "source_frame", time, res):获取从source_frame到target_frame的相对位姿
-      transformer_.lookupTransform("wheelodom", base_footprint_frame_, filter_time, odom_meas_);
+      transformer_.lookupTransform("wheelodom", base_footprint_frame_, filter_time, odom_meas_);//注意获取的是filter_time时刻的位姿（可能会插值）
       if (odom_initialized_){
-	// convert absolute odom measurements to relative odom measurements in horizontal plane
+	// convert absolute odom measurements to relative odom measurements in horizontal plane：
+	      //绝对的里程计测量值即base_footprint_frame 到wheelodom(固定坐标系，会漂移)的相对位姿
 	Transform odom_rel_frame =  Transform(tf::createQuaternionFromYaw(filter_estimate_old_vec_(6)), 
 					      filter_estimate_old_.getOrigin()) * odom_meas_old_.inverse() * odom_meas_;
 	ColumnVector odom_rel(6); 
@@ -225,7 +226,7 @@ namespace estimation
         ROS_ERROR("filter time older than imu message buffer");
         return false;
       }
-      transformer_.lookupTransform("imu", base_footprint_frame_, filter_time, imu_meas_);
+      transformer_.lookupTransform("imu", base_footprint_frame_, filter_time, imu_meas_);//这里也是获取的filter_time时刻的imu绝对测量值（可能会插值）
       if (imu_initialized_){
 	// convert absolute imu yaw measurement to relative imu yaw measurement 
 	Transform imu_rel_frame =  filter_estimate_old_ * imu_meas_old_.inverse() * imu_meas_;
